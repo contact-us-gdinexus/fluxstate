@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/fluxstate_herobanner.png" alt="FluxState Edge Hero Banner" width="100%">
+<img src="https://raw.githubusercontent.com/contact-us-gdinexus/fluxstate/main/assets/fluxstate_herobanner.png" alt="FluxState Edge Hero Banner" width="100%">
 
 # 🦅 FluxState Edge SDK
 
@@ -50,9 +50,9 @@ See the SDK installation and verification in under a minute.
 ## 🖼️ Architectural Vision & Use Cases
 
 <div align="center">
-  <img src="assets/fluxstate_architectural_diagram.png" alt="FluxState Architecture Diagram" width="90%">
+  <img src="https://raw.githubusercontent.com/contact-us-gdinexus/fluxstate/main/assets/fluxstate_architectural_diagram.png" alt="FluxState Architecture Diagram" width="90%">
   <br><br>
-  <img src="assets/fluxstate_usecases.png" alt="Use Cases" width="90%">
+  <img src="https://raw.githubusercontent.com/contact-us-gdinexus/fluxstate/main/assets/fluxstate_usecases.png" alt="Use Cases" width="90%">
 </div>
 
 <br>
@@ -127,12 +127,12 @@ pytest tests/
 ---
 
 <div align="center">
-  <i>For a deeper dive into the threading model, VLM orchestration, and the SQLite schema, see <a href="architecture.md">architecture.md</a>.</i>
+  <i>For a deeper dive into the threading model, VLM orchestration, and the SQLite schema, see <a href="https://github.com/contact-us-gdinexus/fluxstate/blob/main/architecture.md">architecture.md</a>.</i>
 </div>
 
 ---
 
 <div align="center">
   <b>📦 <a href="https://pypi.org/project/fluxstate-security/">PyPI Package</a></b> • 
-  <b>📖 <a href="architecture.md">Documentation</a></b>
+  <b>📖 <a href="https://github.com/contact-us-gdinexus/fluxstate/blob/main/architecture.md">Documentation</a></b>
 </div>
