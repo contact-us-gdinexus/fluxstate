@@ -1,0 +1,29 @@
+{
+    "NODE_ID": "EDGE_NODE_ALPHA",
+    "SECTOR_PROFILE": "COMMERCIAL_ENTERPRISE_ZONE",
+    "INGESTION": {
+        "source": 0,
+        "rtsp_stream_url": ""
+    },
+    "INTEGRATION_BUS": {
+        "webhook_url": "",
+        "push_on_threat_only": true
+    },
+    "THREAT_VECTORS": {
+        "KINETIC_AGGRESSION": {
+            "enabled": true,
+            "trigger_actions": [
+                "WALKING_OR_RAPID_KINETIC_SHIFT", 
+                "ARMS_RAISED_OR_REACHING"
+            ],
+            "trigger_acoustics": [
+                "VOCAL_ESCALATION", 
+                "KINETIC_IMPACT_OR_SHATTERING"
+            ]
+        },
+        "RF_PAYLOAD_ANOMALY": {
+            "enabled": true,
+            "max_allowed_rf_per_entity": 3
+        }
+    }
+}
