@@ -6,7 +6,6 @@
 
 **Privacy-Preserving Contextual Edge Video Analytics for Enterprise Security**
 
-[![PyPI version](https://img.shields.io/pypi/v/fluxstate-security?color=2e2e2e&style=for-the-badge)](https://pypi.org/project/fluxstate-security/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge&color=2e2e2e)](https://opensource.org/licenses/MIT)
 [![Tests: Passing](https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=for-the-badge&color=2e2e2e)]()
 
