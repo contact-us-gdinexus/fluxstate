@@ -6,7 +6,7 @@
 
 **Privacy-Preserving Contextual Edge Video Analytics for Enterprise Security**
 
-[![PyPI version](https://img.shields.io/pypi/v/fluxstate-security.svg?style=for-the-badge&color=2e2e2e)](https://pypi.org/project/fluxstate-security/)
+[![PyPI version](https://img.shields.io/pypi/v/fluxstate-security?color=2e2e2e&style=for-the-badge)](https://pypi.org/project/fluxstate-security/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge&color=2e2e2e)](https://opensource.org/licenses/MIT)
 [![Tests: Passing](https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=for-the-badge&color=2e2e2e)]()
 
@@ -30,7 +30,7 @@ pip install fluxstate-security
 
 See the SDK installation and verification in under a minute.
 
-▶️ [Watch Installation Demo (Google Drive)](https://drive.google.com/file/d/1wf4hSMkGXe3q5MOipx87nfwzQis2_Xcf/view?usp=sharing)
+▶️ [Watch Installation Demo (Google Drive)](https://drive.google.com/file/d/1_KX3aYMqBTP7uCZmRAn4qMwj1M6CpZxd/view?usp=sharing)
 
 <br>
 
@@ -133,6 +133,7 @@ pytest tests/
 ---
 
 <div align="center">
+  <b>⭐ <a href="https://github.com/contact-us-gdinexus/fluxstate">GitHub Repository</a></b> • 
   <b>📦 <a href="https://pypi.org/project/fluxstate-security/">PyPI Package</a></b> • 
   <b>📖 <a href="https://github.com/contact-us-gdinexus/fluxstate/blob/main/architecture.md">Documentation</a></b>
 </div>
