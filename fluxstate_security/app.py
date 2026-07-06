@@ -60,11 +60,23 @@ class FluxStateNode:
             
         self.stream = EdgeVideoStream(stream_source)
         self.graph = RealityGraph()
-        self.ai_engine = FluxInferenceEngine()
         self.physics_tracker = PhysicsTracker()
         self.forensics = ForensicDatabase()
-        self.agent = SemanticAgent()
         
+        # Inject the same DB instance to avoid double loading and stale caches
+        self.ai_engine = FluxInferenceEngine(db=self.forensics)
+        
+        self.adaptive_mode = os.environ.get("ADAPTIVE_INTELLIGENCE", "False").lower() in ("true", "1")
+        if self.adaptive_mode:
+            from .core.agent import MLXModelPool
+            from .core.state_manager import EpisodicMemoryBuffer
+            self.agent = MLXModelPool(enable_adaptive=True)
+            self.episodic_memory = EpisodicMemoryBuffer()
+        else:
+            from .core.agent import SemanticAgent
+            self.agent = SemanticAgent()
+            self.episodic_memory = None
+            
         # Seamless SDK Integration Hooks
         self.on_threat_detected = None
         self.on_telemetry_update = None
@@ -125,29 +137,54 @@ class FluxStateNode:
             })
             
         if should_infer:
-            context = self.ai_engine.generate_context_reasoning(detected_objects, movement_boxes, action, rf_count, acoustic)
+            context, vlm_reasoning, adaptive_status = self.ai_engine.generate_context_reasoning(
+                detected_objects, movement_boxes, action, rf_count, acoustic, frame=frame
+            )
             self.graph.log_event(context)
             telemetry["context_log"] = context
+            if vlm_reasoning:
+                telemetry["vlm_reasoning"] = vlm_reasoning
             
             # --- VLM AGENT INTERCEPTION ---
-            if "THREAT VECTOR" in context or "ANOMALY" in context.upper():
-                # Annotate frame to give the VLM explicit visual targeting
-                vlm_frame = frame.copy()
-                for (x, y, bw, bh, label, conf, obj_id) in detected_objects:
-                    if "person" not in label.lower():
-                        cv2.rectangle(vlm_frame, (x, y), (x + bw, y + bh), (0, 0, 255), 3)
-                        cv2.putText(vlm_frame, "TARGET ANOMALY", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            # If a threat was confirmed, OR if it's legacy mode and we see THREAT VECTOR
+            if adaptive_status in ("CONFIRMED", "SUPPRESSED") or "THREAT VECTOR" in context or "ANOMALY" in context.upper():
                 
-                prompt = (
-                    "Initiate Priority Threat Assessment. FOCUS YOUR ATTENTION EXCLUSIVELY ON THE OBJECT(S) OUTLINED IN RED BOUNDING BOXES. "
-                    "Perform a high-fidelity visual inspection of the pixels inside the red boundaries. "
-                    "Determine if the bounded object represents a tactical threat, such as an improvised weapon, firearm, explosive, or hostile instrument. "
-                    "Rule out harmless civilian electronics or everyday objects based on visual evidence. "
-                    "Provide a definitive classification of the anomaly and assess the immediate tactical risk."
-                )
-                vlm_reasoning = self.agent.investigate_scene(context, vlm_frame, prompt=prompt)
-                telemetry["vlm_reasoning"] = vlm_reasoning
-                print(f"[VLM Reasoner] {vlm_reasoning}")
+                # In legacy mode, we run the SemanticAgent here manually.
+                if not self.adaptive_mode:
+                    vlm_frame = frame.copy()
+                    for (x, y, bw, bh, label, conf, obj_id) in detected_objects:
+                        if "person" not in label.lower():
+                            cv2.rectangle(vlm_frame, (x, y), (x + bw, y + bh), (0, 0, 255), 3)
+                            cv2.putText(vlm_frame, "TARGET ANOMALY", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                    
+                    prompt = (
+                        "Initiate Priority Threat Assessment. FOCUS YOUR ATTENTION EXCLUSIVELY ON THE OBJECT(S) OUTLINED IN RED BOUNDING BOXES. "
+                        "Perform a high-fidelity visual inspection of the pixels inside the red boundaries. "
+                        "Determine if the bounded object represents a tactical threat, such as an improvised weapon, firearm, explosive, or hostile instrument. "
+                        "Rule out harmless civilian electronics or everyday objects based on visual evidence. "
+                        "Provide a definitive classification of the anomaly and assess the immediate tactical risk."
+                    )
+                    vlm_reasoning = self.agent.investigate_scene(context, vlm_frame, prompt=prompt)
+                    telemetry["vlm_reasoning"] = vlm_reasoning
+                    print(f"[VLM Reasoner] {vlm_reasoning}")
+                    
+                # Store episode in Episodic Memory for ALL detected anomalies (even if suppressed, for false negative feedback)
+                if self.episodic_memory:
+                    rule_triggered = "UNKNOWN_THREAT"
+                    if "THREAT VECTOR:" in context:
+                        rule_triggered = context.split("THREAT VECTOR:")[1].split("]")[0].strip()
+                    elif adaptive_status == "SUPPRESSED":
+                        rule_triggered = "ADAPTIVE_SUPPRESSED"
+                        
+                    event_id = self.episodic_memory.add_episode(
+                        rule_triggered=rule_triggered,
+                        scene_description=context,
+                        telemetry=telemetry,
+                        frame=frame
+                    )
+                    telemetry["event_id"] = event_id
+                    telemetry["feedback_url"] = f"/api/v2/feedback"
+                    print(f"[EpisodicMemory] Cached event {event_id} (Status: {adaptive_status}) for feedback.")
                 
             self._push_to_integration_bus(telemetry)
             self.forensics.log_event(telemetry)
@@ -374,7 +411,9 @@ class FluxStateNode:
                         self.graph.log_event("Environment stable. No kinetic anomalies.")
                 else:
                     self.graph.set_state(IntelligenceState.REASONING)
-                    context = self.ai_engine.generate_context_reasoning(detected_objects, movement_boxes, action_heuristic, rf_count, acoustic)
+                    context, vlm_reasoning, adaptive_status = self.ai_engine.generate_context_reasoning(
+                        detected_objects, movement_boxes, action_heuristic, rf_count, acoustic, frame=frame
+                    )
                     self.graph.log_event(context)
                     
                 # Cache telemetry for the API Server
@@ -388,6 +427,9 @@ class FluxStateNode:
                     "context_log": context
                 }
                 
+                if should_infer and vlm_reasoning:
+                    self.latest_telemetry["vlm_reasoning"] = vlm_reasoning
+                    
                 # Push active threats to Webhook VMS Integration
                 if should_infer:
                     self._push_to_integration_bus(self.latest_telemetry)
@@ -434,30 +476,129 @@ class FluxStateNode:
         This allows any Command Center Web Dashboard to hook into this Edge Node.
         """
         import json
+        import jwt
         from http.server import BaseHTTPRequestHandler, HTTPServer
         import threading
         
         node = self
+        JWT_SECRET = os.environ.get("FLUX_JWT_SECRET", "flux_edge_secret_key_992")
         
         class TelemetryHandler(BaseHTTPRequestHandler):
-            def do_GET(req):
-                if req.path == '/telemetry':
-                    req.send_response(200)
-                    req.send_header('Content-type', 'application/json')
-                    req.send_header('Access-Control-Allow-Origin', '*')
-                    req.end_headers()
+            def _send_cors_headers(self):
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+
+            def do_OPTIONS(self):
+                self.send_response(200)
+                self._send_cors_headers()
+                self.end_headers()
+
+            def _validate_jwt(self):
+                auth_header = self.headers.get('Authorization')
+                if not auth_header or not auth_header.startswith("Bearer "):
+                    return None, "Missing or invalid Authorization header"
+                token = auth_header.split(" ")[1]
+                try:
+                    payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+                    if payload.get("role") not in ["admin", "security_operator"]:
+                        return None, "Insufficient role permissions"
+                    return payload, None
+                except jwt.ExpiredSignatureError:
+                    return None, "Token expired"
+                except jwt.InvalidTokenError:
+                    return None, "Invalid token"
+
+            def do_GET(self):
+                if self.path == '/telemetry':
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self._send_cors_headers()
+                    self.end_headers()
                     
-                    # Fetch live telemetry (or cached if running UI concurrently)
                     data = getattr(node, 'latest_telemetry', node.poll_telemetry())
-                    req.wfile.write(json.dumps(data).encode('utf-8'))
+                    self.wfile.write(json.dumps(data).encode('utf-8'))
                 else:
-                    req.send_response(404)
-                    req.end_headers()
+                    self.send_response(404)
+                    self.end_headers()
+                    
+            def do_POST(self):
+                if self.path == '/api/v2/feedback':
+                    payload, error = self._validate_jwt()
+                    if error:
+                        self.send_response(401)
+                        self.send_header('Content-type', 'application/json')
+                        self._send_cors_headers()
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": error}).encode('utf-8'))
+                        return
+
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    try:
+                        post_data = json.loads(self.rfile.read(content_length))
+                    except json.JSONDecodeError:
+                        self.send_response(400)
+                        self.end_headers()
+                        return
+
+                    event_id = post_data.get("event_id")
+                    human_label = post_data.get("human_label")
+                    operator_id = post_data.get("operator_id", payload.get("sub", "unknown"))
+                    operator_role = post_data.get("operator_role", payload.get("role", "operator"))
+                    
+                    if not event_id or not human_label:
+                        self.send_response(400)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": "Missing event_id or human_label"}).encode('utf-8'))
+                        return
+
+                    if not node.episodic_memory:
+                        self.send_response(503)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": "Adaptive Intelligence offline"}).encode('utf-8'))
+                        return
+
+                    episode = node.episodic_memory.get_episode(event_id)
+                    if not episode:
+                        self.send_response(404)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": "Event expired or not found"}).encode('utf-8'))
+                        return
+                        
+                    # Generate embedding
+                    try:
+                        emb = node.agent.generate_embedding(episode["scene_description"])
+                    except Exception as e:
+                        self.send_response(500)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": f"Embedding failed: {str(e)}"}).encode('utf-8'))
+                        return
+                        
+                    # Store in ContextLedger
+                    node.forensics.log_feedback_event(
+                        rule_triggered=episode["rule_triggered"],
+                        scene_description=episode["scene_description"],
+                        embedding=emb,
+                        human_label=human_label,
+                        operator_id=operator_id,
+                        operator_role=operator_role,
+                        event_id=event_id
+                    )
+                    
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self._send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "success", "event_id": event_id}).encode('utf-8'))
+                else:
+                    self.send_response(404)
+                    self.end_headers()
                     
             def log_message(self, format, *args):
-                pass # Suppress HTTP logs to keep terminal clean
+                pass 
                 
-        server = HTTPServer(('0.0.0.0', port), TelemetryHandler)
+        from http.server import ThreadingHTTPServer
+        server = ThreadingHTTPServer(('0.0.0.0', port), TelemetryHandler)
         print(f"[Network] FluxState Edge JSON API broadcasting on http://localhost:{port}/telemetry")
         threading.Thread(target=server.serve_forever, daemon=True).start()
 

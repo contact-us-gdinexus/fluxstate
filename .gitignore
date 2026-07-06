@@ -31,3 +31,33 @@ test_ledger.db
 test_ledger_log.db
 swarm_ledger.db
 *.pt
+
+# SQLite runtime artifacts
+*.db-shm
+*.db-wal
+benchmark_ledger.db
+flux_forensics_integration.db
+test_retrieval.db
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.DS_Store
+
+# Local dependencies and artifacts
+release_venv/
+.idea/
+.vscode/
+tmp/
+downloads/
+models/
+*.log
+
+verify_release/
+build/
+dist/
+*.egg-info/
+__pycache__/
+.pytest_cache/
